@@ -1,5 +1,3 @@
-// ignore_for_file: library_private_types_in_public_api
-
 import 'package:flutter/material.dart';
 
 void main() {
@@ -36,6 +34,35 @@ class _HierarchicalViewState extends State<HierarchicalView> {
 
   final GlobalKey _parentKey = GlobalKey();
   final Map<GlobalKey, Offset> _nodePositions = {};
+  final Map<NodeData, bool> _expandedNodes = {};
+
+  final NodeData _parentNode = NodeData(
+    key: GlobalKey(),
+    label: 'Parent Node',
+    children: [
+      NodeData(
+        key: GlobalKey(),
+        label: 'Child 1',
+      ),
+      NodeData(
+        key: GlobalKey(),
+        label: 'Child 2',
+      ),
+    ],
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeExpandedNodes(_parentNode);
+  }
+
+  void _initializeExpandedNodes(NodeData node) {
+    _expandedNodes[node] = true;
+    for (var child in node.children) {
+      _initializeExpandedNodes(child);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,119 +70,101 @@ class _HierarchicalViewState extends State<HierarchicalView> {
       appBar: AppBar(
         title: const Text('Hierarchical Nodes'),
       ),
-      body: GestureDetector(
-        onScaleStart: (ScaleStartDetails details) {
-          _previousScale = _scale;
-          _normalizedOffset = (_offset - details.focalPoint) / _scale;
-          setState(() {});
-        },
-        onScaleUpdate: (ScaleUpdateDetails details) {
-          _scale = _previousScale * details.scale;
-          _offset = details.focalPoint + _normalizedOffset * _scale;
-          setState(() {});
-        },
-        onScaleEnd: (ScaleEndDetails details) {
-          _previousScale = 1.0;
-        },
-        child: SingleChildScrollView(
-          child: Container(
-            height: MediaQuery.sizeOf(context).height,
-            width: MediaQuery.sizeOf(context).width,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue.shade200, Colors.blue.shade900],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Transform(
-              transform: Matrix4.identity()
-                ..translate(_offset.dx, _offset.dy)
-                ..scale(_scale),
-              child: CustomPaint(
-                painter: NodePainter(nodePositions: _nodePositions),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Node(
-                      key: _parentKey,
-                      label: 'Parent Node',
-                      nodePositions: _nodePositions,
+      body: Column(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onScaleStart: (ScaleStartDetails details) {
+                _previousScale = _scale;
+                _normalizedOffset = (_offset - details.focalPoint) / _scale;
+                setState(() {});
+              },
+              onScaleUpdate: (ScaleUpdateDetails details) {
+                _scale = _previousScale * details.scale;
+                _offset = details.focalPoint + _normalizedOffset * _scale;
+                setState(() {});
+              },
+              onScaleEnd: (ScaleEndDetails details) {
+                _previousScale = 1.0;
+              },
+              child: SingleChildScrollView(
+                child: Container(
+                  height: MediaQuery.of(context).size.height,
+                  width: MediaQuery.of(context).size.width,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.blue.shade200, Colors.blue.shade900],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Transform(
+                    transform: Matrix4.identity()
+                      ..translate(_offset.dx, _offset.dy)
+                      ..scale(_scale),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         Node(
-                          label: 'Child 1',
+                          key: _parentKey,
+                          data: _parentNode,
                           nodePositions: _nodePositions,
-                          children: [
-                            Node(
-                              label: 'Child 1.1',
-                              nodePositions: _nodePositions,
-                              children: [
-                                Node(
-                                    label: "1.1.1",
-                                    nodePositions: _nodePositions),
-                                Node(
-                                    label: "1.1.1",
-                                    nodePositions: _nodePositions),
-                                Node(
-                                    label: "1.1.1",
-                                    nodePositions: _nodePositions),
-                              ],
-                            ),
-                            Node(
-                                label: 'Child 1.2',
-                                nodePositions: _nodePositions),
-                            Node(
-                                label: 'Child 1.2',
-                                nodePositions: _nodePositions),
-                          ],
-                        ),
-                        Node(
-                          label: 'Child 2',
-                          nodePositions: _nodePositions,
-                          children: [
-                            Node(
-                                label: 'Child 2.1',
-                                nodePositions: _nodePositions),
-                            Node(
-                                label: 'Child 2.1',
-                                nodePositions: _nodePositions),
-                          ],
-                        ),
-                        Node(
-                          label: 'Child 3',
-                          nodePositions: _nodePositions,
-                          children: [
-                            Node(
-                                label: 'Child 3.1',
-                                nodePositions: _nodePositions),
-                            Node(
-                                label: 'Child 3.1',
-                                nodePositions: _nodePositions),
-                          ],
+                          expandedNodes: _expandedNodes,
+                          onAddChild: _addChild,
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
+  }
+
+  void _addChild(NodeData parentNode, String childLabel) {
+    setState(() {
+      final newNode = NodeData(
+        key: GlobalKey(),
+        label: childLabel,
+      );
+      parentNode.addChild(newNode);
+      _expandedNodes[newNode] = true; // Automatically expand new nodes
+    });
+  }
+}
+
+class NodeData {
+  final GlobalKey key;
+  final String label;
+  final List<NodeData> children;
+
+  NodeData({
+    required this.key,
+    required this.label,
+    List<NodeData>? children,
+  }) : children = children ?? [];
+
+  void addChild(NodeData child) {
+    children.add(child);
   }
 }
 
 class Node extends StatefulWidget {
-  final String label;
-  final List<Node>? children;
+  final NodeData data;
   final Map<GlobalKey, Offset> nodePositions;
+  final Map<NodeData, bool> expandedNodes;
+  final void Function(NodeData parentNode, String childLabel) onAddChild;
 
-  const Node(
-      {super.key,
-      required this.label,
-      this.children,
-      required this.nodePositions});
+  const Node({
+    super.key,
+    required this.data,
+    required this.nodePositions,
+    required this.expandedNodes,
+    required this.onAddChild,
+  });
 
   @override
   _NodeState createState() => _NodeState();
@@ -163,7 +172,7 @@ class Node extends StatefulWidget {
 
 class _NodeState extends State<Node> {
   bool _expanded = false;
-  final GlobalKey _key = GlobalKey();
+  late final GlobalKey _key;
 
   @override
   void didUpdateWidget(Node oldWidget) {
@@ -176,9 +185,11 @@ class _NodeState extends State<Node> {
   @override
   void initState() {
     super.initState();
+    _key = widget.data.key;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updatePosition();
     });
+    _expanded = widget.expandedNodes[widget.data]!;
   }
 
   void _updatePosition() {
@@ -190,20 +201,60 @@ class _NodeState extends State<Node> {
     }
   }
 
+  void _showAddChildDialog() {
+    final TextEditingController childNameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add Child Node'),
+          content: TextField(
+            controller: childNameController,
+            decoration: const InputDecoration(
+              labelText: 'Child Name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (childNameController.text.isNotEmpty) {
+                  widget.onAddChild(
+                    widget.data,
+                    childNameController.text,
+                  );
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.start,
       children: [
         GestureDetector(
           onTap: () {
             setState(() {
               _expanded = !_expanded;
+              widget.expandedNodes[widget.data] = _expanded;
             });
           },
           child: Container(
-            key: _key,
-            padding: const EdgeInsets.all(16.0),
+            key: ObjectKey(UniqueKey()),
+            padding: const EdgeInsets.all(8.0),
             margin: const EdgeInsets.all(8.0),
             decoration: BoxDecoration(
               color: Colors.blueAccent,
@@ -221,28 +272,40 @@ class _NodeState extends State<Node> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  widget.label,
+                  widget.data.label,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.person, color: Colors.white),
+                  onPressed: _showAddChildDialog,
+                ),
               ],
             ),
           ),
         ),
-        if (_expanded && widget.children != null)
+        if (_expanded && widget.data.children.isNotEmpty)
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: widget.children!.map((child) => child).toList(),
+            children: widget.data.children
+                .map((child) => Node(
+                      key: child.key,
+                      data: child,
+                      nodePositions: widget.nodePositions,
+                      expandedNodes: widget.expandedNodes,
+                      onAddChild: widget.onAddChild,
+                    ))
+                .toList(),
           ),
       ],
     );
   }
 }
-
+/// this class might be use in future for drawing the directed lines
 class NodePainter extends CustomPainter {
   final Map<GlobalKey, Offset> nodePositions;
 
@@ -263,8 +326,8 @@ class NodePainter extends CustomPainter {
       final nodeState = key.currentState as _NodeState?;
       if (nodeState != null &&
           nodeState._expanded &&
-          nodeState.widget.children != null) {
-        for (var child in nodeState.widget.children!) {
+          nodeState.widget.data.children.isNotEmpty) {
+        for (var child in nodeState.widget.data.children) {
           final childPosition = nodePositions[child.key];
           if (childPosition != null) {
             canvas.drawLine(
